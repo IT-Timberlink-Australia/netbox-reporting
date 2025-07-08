@@ -1,0 +1,27 @@
+---
+- name: Generate NetBox Device Count PDF Report
+  hosts: localhost
+  gather_facts: no
+
+  vars:
+    netbox_url: "{{ lookup('env', 'NETBOX_URL') | default('https://netbox.example.com', true) }}"
+    netbox_token: "{{ lookup('env', 'NETBOX_TOKEN') | default(omit, true) }}"
+
+  tasks:
+
+    - name: Ensure 'reportlab' is installed
+      pip:
+        name: reportlab
+        executable: pip3
+
+    - name: Run device report script
+      environment:
+        NETBOX_URL: "{{ netbox_url }}"
+        NETBOX_TOKEN: "{{ netbox_token }}"
+      script: get_netbox_device_report.py
+
+    - name: Fetch generated PDF report to AWX artifacts directory
+      fetch:
+        src: netbox_device_report.pdf
+        dest: "{{ awx_work_dir | default('/tmp') }}/netbox_device_report.pdf"
+        flat: yes
