@@ -19,7 +19,7 @@ except ImportError:
 # ---- Configuration ----
 NETBOX_URL = os.environ.get('NETBOX_URL') or os.environ.get('NETBOX_API')
 NETBOX_TOKEN = os.environ.get('NETBOX_TOKEN')
-EXCLUDED_ROLE_IDS = {2, 11, 24, 26}
+EXCLUDED_ROLE_IDS = {2, 11}  # 24,26 are now INCLUDED as Printer!
 
 if not NETBOX_URL or not NETBOX_TOKEN:
     print("Missing NETBOX_URL (or NETBOX_API) or NETBOX_TOKEN environment variables.", file=sys.stderr)
@@ -40,6 +40,8 @@ HEADING_ORDER = [
     "Network Attached Storage",
     "Production Workstations",
     "Uninterruptible Power Supply",
+    "Printer",
+    "Wireless Access Equipment",
 ]
 
 # ---- Device Role Grouping Mapping ----
@@ -76,6 +78,15 @@ DEVICE_ROLE_GROUPS = {
     "Uninterruptible Power Supply": {
         "Enterprise": [14],
         "Operational": [44],
+    },
+    "Printer": {
+        "Enterprise": [24],
+        "Operational": [26],
+    },
+    "Wireless Access Equipment": {
+        "Access Points": [10],
+        "Point to Point": [45],
+        "Access Equipment": [46],
     },
 }
 
@@ -120,7 +131,6 @@ for item in all_items:
     with open(device_debug_file, "a") as dbg:
         dbg.write(json.dumps(item, indent=2) + "\n\n")
 
-    # For both devices and VMs, site is similar
     site = item.get('site', {}).get('name', 'Unassigned Site')
 
     # Filter: only process "active" devices/VMs
