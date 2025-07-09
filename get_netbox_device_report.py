@@ -9,6 +9,7 @@ from collections import defaultdict
 try:
     import openpyxl
     from openpyxl.styles import Font, PatternFill, Alignment
+    from openpyxl.utils import get_column_letter
 except ImportError:
     print("openpyxl is not installed. Run 'pip install openpyxl' and retry.", file=sys.stderr)
     sys.exit(1)
@@ -92,7 +93,10 @@ def get_heading_and_subheading(role_id):
     return "Other", "Other"
 
 def tick(val):
-    return "✓" if val else "✗"
+    if val:
+        return "✓", "00AA00"  # green
+    else:
+        return "✗", "FF0000"  # red
 
 def short_desc(desc, length=100):
     if desc and len(desc) > length:
@@ -210,11 +214,20 @@ for site in sorted(site_device_counts):
                     subheading,
                     device['name'],
                     short_desc(device.get('description', ''), 100),
-                    tick(device.get('primary_ip')),
-                    tick(device.get('serial')),
-                    tick(device.get('backup_primary')),
-                    tick(device.get('monitoring_required') is not False),
+                    "", "", "", ""  # Placeholders for ticks/crosses
                 ])
+                current_row = ws.max_row
+                tick_primary_ip = tick(device.get('primary_ip'))
+                tick_serial = tick(device.get('serial'))
+                tick_backup = tick(device.get('backup_primary'))
+                tick_monitor = tick(device.get('monitoring_required') is not False)
+                for idx, (value, color) in enumerate(
+                    [tick_primary_ip, tick_serial, tick_backup, tick_monitor], start=4
+                ):
+                    cell = ws.cell(row=current_row, column=idx)
+                    cell.value = value
+                    cell.font = Font(color=color, bold=True)
+                    cell.alignment = Alignment(horizontal="center", vertical="center")
                 rownum += 1
                 table_rows += 1
         if table_rows == 0:
@@ -224,10 +237,18 @@ for site in sorted(site_device_counts):
         ws.append([])
         rownum += 1
 
-    # Auto-size columns
-    for col in ws.columns:
-        max_length = max(len(str(cell.value) or "") for cell in col)
-        ws.column_dimensions[col[0].column_letter].width = min(max_length + 4, 50)
+    # Auto-size columns (skip merged cells)
+    for col_idx in range(1, ws.max_column + 1):
+        col_letter = get_column_letter(col_idx)
+        max_length = 0
+        for row in ws.iter_rows(min_row=1, max_row=ws.max_row, min_col=col_idx, max_col=col_idx):
+            for cell in row:
+                try:
+                    if cell.value and len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except Exception:
+                    pass
+        ws.column_dimensions[col_letter].width = min(max_length + 4, 50)
 
 excel_file = "/runner/netbox_device_report.xlsx"
 wb.save(excel_file)
