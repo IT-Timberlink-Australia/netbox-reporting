@@ -12,6 +12,8 @@ try:
     from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, ListFlowable, ListItem
     from reportlab.lib.styles import getSampleStyleSheet
     from reportlab.lib.pagesizes import letter
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, ListFlowable, ListItem, PageBreak
+
 except ImportError:
     print("reportlab is not installed. Run 'pip install reportlab' and retry.", file=sys.stderr)
     sys.exit(1)
@@ -40,7 +42,7 @@ HEADING_ORDER = [
     "Network Attached Storage",
     "Production Workstations",
     "Uninterruptible Power Supply",
-    "Printer",
+    "Printers",
     "Wireless Access Equipment",
 ]
 
@@ -79,7 +81,7 @@ DEVICE_ROLE_GROUPS = {
         "Enterprise": [14],
         "Operational": [44],
     },
-    "Printer": {
+    "Printers": {
         "Enterprise": [24],
         "Operational": [26],
     },
@@ -170,8 +172,8 @@ story = []
 story.append(Paragraph("Timberlink CMDB Active Production Device Report", styles['Title']))
 story.append(Spacer(1, 24))
 
-total_devices = 0
-for site in sorted(site_device_counts):
+site_list = sorted(site_device_counts)
+for idx, site in enumerate(site_list):
     story.append(Paragraph(f"Site: {site}", styles['Heading2']))
     for heading in HEADING_ORDER:
         if heading not in site_device_counts[site]:
@@ -183,7 +185,6 @@ for site in sorted(site_device_counts):
             count = data['count']
             if count > 0:
                 bullet_points.append(ListItem(Paragraph(f"{subheading}: {count}", styles['Normal'])))
-                # List device names indented under the count
                 name_bullets = [ListItem(Paragraph(name, styles['Normal'])) for name in sorted(data['names'])]
                 if name_bullets:
                     bullet_points.append(ListFlowable(name_bullets, bulletType='bullet', leftIndent=18))
@@ -191,7 +192,6 @@ for site in sorted(site_device_counts):
         if bullet_points:
             story.append(ListFlowable(bullet_points, bulletType='bullet'))
         story.append(Spacer(1, 8))
-    # Show "Other" category if present
     if "Other" in site_device_counts[site] and site_device_counts[site]["Other"]["Other"]['count'] > 0:
         count = site_device_counts[site]["Other"]["Other"]['count']
         names = site_device_counts[site]["Other"]["Other"]['names']
@@ -200,9 +200,9 @@ for site in sorted(site_device_counts):
         if name_bullets:
             story.append(ListFlowable(name_bullets, bulletType='bullet', leftIndent=18))
     story.append(Spacer(1, 12))
-
-story.append(Spacer(1, 24))
-story.append(Paragraph(f"<b>Total Devices in All Sites: {total_devices}</b>", styles['Normal']))
+    # Add page break after each site except the last one
+    if idx != len(site_list) - 1:
+        story.append(PageBreak())
 
 # Footer with date
 story.append(Spacer(1, 12))
