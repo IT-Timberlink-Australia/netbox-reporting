@@ -25,3 +25,15 @@
         src: netbox_device_report.pdf
         dest: "{{ awx_work_dir | default('/tmp') }}/netbox_device_report.pdf"
         flat: yes
+    
+    - name: Email the PDF report
+      community.general.mail:
+        host: smtp.timberlinkaustralia.com.au      # <-- your SMTP server
+        port: 25                    # (or 587, or as needed)
+        to: cjones@timberlinkaustralia.com.au        # <-- your email address or recipients (comma-separated)
+        from: awx@timberlinkaustralia.com.au       # <-- sender
+        subject: "NetBox Device Report"
+        body: "Attached is the latest NetBox device count PDF report."
+        attach:
+          - /tmp/netbox_device_report.pdf
+      delegate_to: localhost
