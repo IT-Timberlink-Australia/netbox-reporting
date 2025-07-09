@@ -33,10 +33,10 @@
     
     - name: Email the PDF report
       community.general.mail:
-        host: smtp.timberlinkaustralia.com.au      # <-- your SMTP server
-        port: 25                    # (or 587, or as needed)
-        to: cjones@timberlinkaustralia.com.au        # <-- your email address or recipients (comma-separated)
-        from: awx@timberlinkaustralia.com.au       # <-- sender
+        host: smtp.timberlinkaustralia.com.au    
+        port: 25               
+        to: cjones@timberlinkaustralia.com.au        
+        from: awx@timberlinkaustralia.com.au       
         subject: "NetBox Device Report"
         body: "Attached is the latest NetBox device count PDF report."
         attach:

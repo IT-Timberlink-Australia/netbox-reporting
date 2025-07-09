@@ -37,8 +37,8 @@ while url:
     result = r.json()
     for device in result.get('results', []):
         site = device.get('site', {}).get('name', 'Unassigned Site')
-        dtype = device.get('device_type', {}).get('model', 'Unknown Type')
-        site_device_counts[site][dtype] += 1
+        role = device.get('device_role', {}).get('name', 'Unknown Role')
+        site_device_counts[site][role] += 1
     url = result.get('next')
 
 # --- Generate PDF ---
@@ -47,7 +47,7 @@ doc = SimpleDocTemplate(pdf_buffer, pagesize=letter)
 styles = getSampleStyleSheet()
 story = []
 
-story.append(Paragraph("NetBox Device Count by Site", styles['Title']))
+story.append(Paragraph("NetBox Device Count by Site and Role", styles['Title']))
 story.append(Spacer(1, 24))
 date_str = datetime.now().strftime("%B %d, %Y")
 story.append(Paragraph(f"Generated on: {date_str}", styles['Normal']))
