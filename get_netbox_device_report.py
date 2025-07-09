@@ -13,7 +13,6 @@ except ImportError:
     print("openpyxl is not installed. Run 'pip install openpyxl' and retry.", file=sys.stderr)
     sys.exit(1)
 
-# ---- Configuration ----
 NETBOX_URL = os.environ.get('NETBOX_URL') or os.environ.get('NETBOX_API')
 NETBOX_TOKEN = os.environ.get('NETBOX_TOKEN')
 EXCLUDED_ROLE_IDS = {2, 11}
@@ -100,7 +99,6 @@ def short_desc(desc, length=100):
         return desc[:length-3] + "..."
     return desc or ""
 
-# ---- Data Gathering ----
 site_device_counts = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: {'count': 0, 'devices': []})))
 device_debug_file = "/runner/device_debug.json"
 with open(device_debug_file, "w") as dbg:
@@ -167,66 +165,48 @@ for item in all_items:
         site_device_counts[site]['Other']['Other']['count'] += 1
         site_device_counts[site]['Other']['Other']['devices'].append(device_info)
 
-# ---- Excel Generation ----
+# ---- Excel Generation: One sheet per site, table per heading ----
 wb = openpyxl.Workbook()
-default_ws = wb.active
-default_ws.title = "All Sites"
+wb.remove(wb.active)  # Remove default sheet
 
 headers = [
-    "Site", "Heading", "Subheading", "Device Name", "Description", "Primary IP",
+    "Subheading", "Device Name", "Description", "Primary IP",
     "Serial", "Backup Data - Primay", "Monitoring Required"
 ]
-default_ws.append(headers)
 
 header_fill = PatternFill("solid", fgColor="00336699")
 header_font = Font(bold=True, color="FFFFFFFF")
-for cell in default_ws[1]:
-    cell.font = header_font
-    cell.fill = header_fill
-    cell.alignment = Alignment(horizontal="center", vertical="center")
+heading_font = Font(bold=True, color="000000", size=12)
 
-# Write all devices as flat rows to 'All Sites' worksheet
 for site in sorted(site_device_counts):
+    ws = wb.create_sheet(title=site[:31])
+    ws.append([f"{site} Device Report"])
+    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(headers))
+    ws['A1'].font = Font(bold=True, size=14)
+    rownum = 2
+
     for heading in HEADING_ORDER:
         if heading not in site_device_counts[site]:
             continue
-        for subheading in DEVICE_ROLE_GROUPS[heading]:
-            devices = site_device_counts[site][heading][subheading]['devices']
-            for device in sorted(devices, key=lambda d: d['name']):
-                default_ws.append([
-                    site,
-                    heading,
-                    subheading,
-                    device['name'],
-                    short_desc(device.get('description', ''), 100),
-                    tick(device.get('primary_ip')),
-                    tick(device.get('serial')),
-                    tick(device.get('backup_primary')),
-                    tick(device.get('monitoring_required') is not False),
-                ])
+        # Heading row
+        ws.append([f"{heading}"])
+        ws.merge_cells(start_row=rownum, start_column=1, end_row=rownum, end_column=len(headers))
+        ws[f'A{rownum}'].font = heading_font
+        rownum += 1
 
-# Optional: auto-size columns in the default worksheet
-for col in default_ws.columns:
-    max_length = max(len(str(cell.value) or "") for cell in col)
-    default_ws.column_dimensions[col[0].column_letter].width = min(max_length + 4, 50)
+        # Table headers
+        for colidx, head in enumerate(headers, 1):
+            cell = ws.cell(row=rownum, column=colidx, value=head)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+        rownum += 1
 
-# ---- Create a worksheet for each site ----
-for site in sorted(site_device_counts):
-    ws = wb.create_sheet(title=site[:31])  # Excel worksheet name max length is 31
-    ws.append(headers)
-    for cell in ws[1]:
-        cell.font = header_font
-        cell.fill = header_fill
-        cell.alignment = Alignment(horizontal="center", vertical="center")
-    for heading in HEADING_ORDER:
-        if heading not in site_device_counts[site]:
-            continue
+        table_rows = 0
         for subheading in DEVICE_ROLE_GROUPS[heading]:
             devices = site_device_counts[site][heading][subheading]['devices']
             for device in sorted(devices, key=lambda d: d['name']):
                 ws.append([
-                    site,
-                    heading,
                     subheading,
                     device['name'],
                     short_desc(device.get('description', ''), 100),
@@ -235,12 +215,20 @@ for site in sorted(site_device_counts):
                     tick(device.get('backup_primary')),
                     tick(device.get('monitoring_required') is not False),
                 ])
-    # Auto-size columns in each site worksheet
+                rownum += 1
+                table_rows += 1
+        if table_rows == 0:
+            # If there were no devices for any subheading, still move the row down
+            rownum += 1
+        # Blank row after each heading group
+        ws.append([])
+        rownum += 1
+
+    # Auto-size columns
     for col in ws.columns:
         max_length = max(len(str(cell.value) or "") for cell in col)
         ws.column_dimensions[col[0].column_letter].width = min(max_length + 4, 50)
 
-# Save file
 excel_file = "/runner/netbox_device_report.xlsx"
 wb.save(excel_file)
 print("Excel report generated:", excel_file)
