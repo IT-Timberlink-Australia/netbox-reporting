@@ -264,6 +264,13 @@ for col_idx in range(1, summary_ws.max_column + 1):
     cell.font = Font(bold=True, color="00336699")
     cell.alignment = Alignment(horizontal="center", vertical="center")
 
+from datetime import datetime
+
+dt_row = summary_ws.max_row + 2
+summary_ws.cell(row=dt_row, column=1, value=f"Report generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+summary_ws.merge_cells(start_row=dt_row, start_column=1, end_row=dt_row, end_column=summary_ws.max_column)
+summary_ws[f"A{dt_row}"].font = Font(italic=True, color="888888")
+
 # ---- Set Percentage Format ----
 for row in summary_ws.iter_rows(min_row=2, max_row=summary_ws.max_row, min_col=5, max_col=8):
     for cell in row:
