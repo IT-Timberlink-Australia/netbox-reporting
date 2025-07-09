@@ -27,8 +27,8 @@
 
     - name: Fetch generated PDF report to AWX artifacts directory
       fetch:
-        src: netbox_device_report.pdf
-        dest: "{{ awx_work_dir | default('/tmp') }}/netbox_device_report.pdf"
+        src: /runner/netbox_device_report.pdf
+        dest: netbox_device_report.pdf
         flat: yes
     
     - name: Email the PDF report

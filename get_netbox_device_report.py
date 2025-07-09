@@ -130,6 +130,6 @@ story.append(Paragraph(f"<b>Total Devices in All Sites: {total_devices}</b>", st
 
 doc.build(story)
 pdf_buffer.seek(0)
-with open("/tmp/netbox_device_report.pdf", "wb") as f:
+with open("/runner/netbox_device_report.pdf", "wb") as f:
     f.write(pdf_buffer.read())
-print("Report generated: /tmp/netbox_device_report.pdf")
+print("Report generated: /runner/netbox_device_report.pdf")
