@@ -19,6 +19,11 @@
         name: requests
         executable: pip3
 
+    - name: Ensure openpyxl is installed
+      pip:
+        name: openpyxl
+        executable: pip3
+
     - name: Run device report script
       environment:
         NETBOX_URL: "{{ netbox_url }}"
@@ -27,8 +32,8 @@
 
     - name: Fetch generated PDF report to AWX artifacts directory
       fetch:
-        src: /runner/netbox_device_report.pdf
-        dest: netbox_device_report.pdf
+        src: /runner/netbox_device_report.xlsx
+        dest: netbox_device_report.xlsx
         flat: yes
 
     - name: Email the PDF report
@@ -40,5 +45,5 @@
         subject: "NetBox Device Report"
         body: "Attached is the latest NetBox device count PDF report."
         attach:
-          - /runner/netbox_device_report.pdf
+          - /runner/netbox_device_report.xlsx
       delegate_to: localhost
