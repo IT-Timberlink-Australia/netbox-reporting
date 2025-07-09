@@ -84,7 +84,7 @@ while url:
     result = r.json()
     for device in result.get('results', []):
         site = device.get('site', {}).get('name', 'Unassigned Site')
-        role_id = device.get('device_role', {}).get('id', None)
+        role_id = device.get('device_role')
         if role_id is not None:
             heading, subheading = get_heading_and_subheading(role_id)
             site_device_counts[site][heading][subheading] += 1
