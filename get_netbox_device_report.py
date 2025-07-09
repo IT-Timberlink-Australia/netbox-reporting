@@ -95,7 +95,7 @@ while url:
 
         # Try to get role_id from dict or int
         role_id = None
-        device_role = device.get('device_role', None)
+        device_role = device.get('role', None)
         if isinstance(device_role, dict):
             role_id = device_role.get('id', None)
         elif isinstance(device_role, int):
