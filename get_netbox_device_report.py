@@ -237,6 +237,44 @@ for site in sorted(site_device_counts):
             ws.append([])
             rownum += 1
 
+    # ---- Add "Other - Other" table if present ----
+    other_devices = site_device_counts[site].get('Other', {}).get('Other', {}).get('devices', [])
+    if other_devices:
+        ws.append(["Other - Other"])
+        ws.merge_cells(start_row=rownum, start_column=1, end_row=rownum, end_column=len(headers))
+        ws[f'A{rownum}'].font = subhead_font
+        rownum += 1
+
+        # Table header
+        for colidx, head in enumerate(headers, 1):
+            cell = ws.cell(row=rownum, column=colidx, value=head)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+        rownum += 1
+
+        for device in sorted(other_devices, key=lambda d: d['name']):
+            ws.append([
+                device['name'],
+                short_desc(device.get('description', ''), 100),
+                "", "", "", ""
+            ])
+            current_row = ws.max_row
+            tick_primary_ip = tick(device.get('primary_ip'))
+            tick_serial = tick(device.get('serial'))
+            tick_backup = tick(device.get('backup_primary'))
+            tick_monitor = tick(device.get('monitoring_required') is not False)
+            for idx, (value, color) in enumerate(
+                [tick_primary_ip, tick_serial, tick_backup, tick_monitor], start=3
+            ):
+                cell = ws.cell(row=current_row, column=idx)
+                cell.value = value
+                cell.font = Font(color=color, bold=True)
+                cell.alignment = Alignment(horizontal="center", vertical="center")
+            rownum += 1
+        ws.append([])
+        rownum += 1
+
     # Auto-size columns (skip merged cells)
     for col_idx in range(1, ws.max_column + 1):
         col_letter = get_column_letter(col_idx)
