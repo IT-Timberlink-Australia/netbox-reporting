@@ -9,9 +9,13 @@ import io
 import json
 
 try:
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, ListFlowable, ListItem, PageBreak
+    from reportlab.platypus import (
+        SimpleDocTemplate, Paragraph, Spacer, PageBreak,
+        Table, TableStyle
+    )
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib.pagesizes import letter
+    from reportlab.lib import colors
 except ImportError:
     print("reportlab is not installed. Run 'pip install reportlab' and retry.", file=sys.stderr)
     sys.exit(1)
@@ -95,8 +99,8 @@ def get_heading_and_subheading(role_id):
                 return heading, subheading
     return "Other", "Other"
 
-def tick(value):
-    return "✓" if value else "✗"
+def color_tick(val):
+    return '<font color="green">✓</font>' if val else '<font color="red">✗</font>'
 
 def short_desc(desc, length=30):
     if desc and len(desc) > length:
@@ -160,8 +164,8 @@ for item in all_items:
         'description': item.get('description', ''),
         'primary_ip': item.get('primary_ip'),
         'serial': item.get('serial'),
-        'backup_primary': cf.get('last_backup_data_prim'),  # updated field name
-        'monitoring_required': cf.get('mon_required'),      # updated field name
+        'backup_primary': cf.get('last_backup_data_prim'),
+        'monitoring_required': cf.get('mon_required'),
     }
 
     if role_id is not None:
@@ -176,72 +180,62 @@ for item in all_items:
 pdf_buffer = io.BytesIO()
 doc = SimpleDocTemplate(pdf_buffer, pagesize=letter)
 styles = getSampleStyleSheet()
-mono_style = ParagraphStyle('Mono', parent=styles['Normal'], fontName='Courier', fontSize=9)
+header_style = ParagraphStyle('Header', parent=styles['Normal'], alignment=1, fontSize=12, textColor=colors.darkblue, fontName="Helvetica-Bold")
+subheader_style = ParagraphStyle('SubHeader', parent=styles['Normal'], alignment=0, fontSize=10, fontName="Helvetica-Bold")
 
 story = []
 
 # Title
-story.append(Paragraph("Timberlink CMDB Active Production Device Report", styles['Title']))
+story.append(Paragraph("Timberlink CMDB Active Production Device Report", header_style))
 story.append(Spacer(1, 24))
-
-col_titles = (
-    "<b>Name           </b>| <b>Description                   </b>| <b>IP</b> | <b>Serial</b> | <b>Backup</b> | <b>Monitoring</b>"
-)
 
 total_devices = 0
 site_list = sorted(site_device_counts)
 for idx, site in enumerate(site_list):
-    story.append(Paragraph(f"Site: {site}", styles['Heading2']))
+    story.append(Paragraph(f"<b>Site: {site}</b>", header_style))
     for heading in HEADING_ORDER:
         if heading not in site_device_counts[site]:
             continue
-        story.append(Paragraph(f"{heading}", styles['Heading3']))
-        bullet_points = []
         for subheading in DEVICE_ROLE_GROUPS[heading]:
             data = site_device_counts[site][heading].get(subheading, {'count': 0, 'names': []})
-            count = data['count']
-            if count > 0:
-                bullet_points.append(ListItem(Paragraph(f"{subheading}: {count}", mono_style)))
-                bullet_points.append(ListItem(Paragraph(col_titles, mono_style)))
+            if data['count'] > 0:
+                story.append(Paragraph(f"{heading} - {subheading}: <b>{data['count']}</b>", subheader_style))
+                # Build table data: headers + rows
+                table_data = [[
+                    "Device Name", "Description", "Primary IP", "Serial",
+                    "Backup Data", "Monitoring"
+                ]]
                 for device in sorted(data['names'], key=lambda d: d['name']):
-                    name = (device['name'] or '')[:15].ljust(15)
-                    description = short_desc(device.get('description', ''), 30).ljust(30)
-                    has_primary_ip = tick(device.get('primary_ip')).center(3)
-                    has_serial = tick(device.get('serial')).center(6)
-                    has_backup = tick(device.get('backup_primary')).center(6)
-                    mon_req = device.get('monitoring_required')
-                    monitoring_required = ("✗" if mon_req is False else "✓").center(10)
-                    device_line = (
-                        f"{name} | {description} | {has_primary_ip} | {has_serial} | {has_backup} | {monitoring_required}"
-                    )
-                    bullet_points.append(ListItem(Paragraph(device_line, mono_style)))
-                total_devices += count
-        if bullet_points:
-            story.append(ListFlowable(bullet_points, bulletType='bullet'))
-        story.append(Spacer(1, 8))
-    if "Other" in site_device_counts[site] and site_device_counts[site]["Other"]["Other"]['count'] > 0:
-        count = site_device_counts[site]["Other"]["Other"]['count']
-        names = site_device_counts[site]["Other"]["Other"]['names']
-        story.append(Paragraph("Other: {}".format(count), mono_style))
-        story.append(Paragraph(col_titles, mono_style))
-        for device in sorted(names, key=lambda d: d['name']):
-            name = (device['name'] or '')[:15].ljust(15)
-            description = short_desc(device.get('description', ''), 30).ljust(30)
-            has_primary_ip = tick(device.get('primary_ip')).center(3)
-            has_serial = tick(device.get('serial')).center(6)
-            has_backup = tick(device.get('backup_primary')).center(6)
-            mon_req = device.get('monitoring_required')
-            monitoring_required = ("✗" if mon_req is False else "✓").center(10)
-            device_line = (
-                f"{name} | {description} | {has_primary_ip} | {has_serial} | {has_backup} | {monitoring_required}"
-            )
-            story.append(Paragraph(device_line, mono_style))
-        story.append(Spacer(1, 8))
-    story.append(Spacer(1, 12))
+                    desc = short_desc(device.get('description', ''), 30)
+                    table_data.append([
+                        device.get('name', ''),
+                        desc,
+                        color_tick(device.get('primary_ip')),
+                        color_tick(device.get('serial')),
+                        color_tick(device.get('backup_primary')),
+                        color_tick(device.get('monitoring_required') is not False),
+                    ])
+                # Create the table
+                t = Table(table_data, repeatRows=1, hAlign='LEFT', colWidths=[90, 120, 55, 55, 70, 70])
+                t.setStyle(TableStyle([
+                    ('BACKGROUND', (0,0), (-1,0), colors.darkblue),
+                    ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
+                    ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+                    ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0,0), (-1,-1), 8),
+                    ('BOTTOMPADDING', (0,0), (-1,0), 6),
+                    ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
+                    ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.whitesmoke, colors.lightgrey]),
+                ]))
+                story.append(t)
+                story.append(Spacer(1, 12))
+                total_devices += data['count']
     if idx != len(site_list) - 1:
         story.append(PageBreak())
 
-# Footer with date
+# Footer with date and total
+story.append(Spacer(1, 24))
+story.append(Paragraph(f"<b>Total Devices in All Sites: {total_devices}</b>", styles['Normal']))
 story.append(Spacer(1, 12))
 date_str = datetime.now().strftime("%B %d, %Y")
 story.append(Paragraph(f"Generated on: {date_str}", styles['Normal']))
