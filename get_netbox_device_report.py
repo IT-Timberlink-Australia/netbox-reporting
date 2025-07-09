@@ -114,3 +114,40 @@ while url:
 pdf_buffer = io.BytesIO()
 doc = SimpleDocTemplate(pdf_buffer, pagesize=letter)
 styles = getSampleStyleSheet()
+story = []
+
+story.append(Paragraph("NetBox Device Count by Site, Heading, and Subheading", styles['Title']))
+story.append(Spacer(1, 24))
+date_str = datetime.now().strftime("%B %d, %Y")
+story.append(Paragraph(f"Generated on: {date_str}", styles['Normal']))
+story.append(Spacer(1, 24))
+
+total_devices = 0
+for site in sorted(site_device_counts):
+    story.append(Paragraph(f"Site: {site}", styles['Heading2']))
+    for heading in DEVICE_ROLE_GROUPS:
+        if heading not in site_device_counts[site]:
+            continue
+        story.append(Paragraph(f"{heading}", styles['Heading3']))
+        bullet_points = []
+        for subheading in DEVICE_ROLE_GROUPS[heading]:
+            count = site_device_counts[site][heading].get(subheading, 0)
+            if count > 0:
+                bullet_points.append(ListItem(Paragraph(f"{subheading}: {count}", styles['Normal'])))
+                total_devices += count
+        if bullet_points:
+            story.append(ListFlowable(bullet_points, bulletType='bullet'))
+        story.append(Spacer(1, 8))
+    # Show "Other" category if present
+    if "Other" in site_device_counts[site] and site_device_counts[site]["Other"]["Other"] > 0:
+        story.append(Paragraph("Other: {}".format(site_device_counts[site]["Other"]["Other"]), styles['Normal']))
+    story.append(Spacer(1, 12))
+
+story.append(Spacer(1, 24))
+story.append(Paragraph(f"<b>Total Devices in All Sites: {total_devices}</b>", styles['Normal']))
+
+doc.build(story)
+pdf_buffer.seek(0)
+with open("/runner/netbox_device_report.pdf", "wb") as f:
+    f.write(pdf_buffer.read())
+print("Report generated: /runner/netbox_device_report.pdf")
