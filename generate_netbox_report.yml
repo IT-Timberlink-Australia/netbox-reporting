@@ -21,7 +21,7 @@
 
     - name: Run device report script
       environment:
-        NETBOX_URL: "{{ netbox_api }}"
+        NETBOX_URL: "{{ netbox_url }}"
         NETBOX_TOKEN: "{{ netbox_token }}"
       script: get_netbox_device_report.py
 
