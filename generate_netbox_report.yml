@@ -45,5 +45,5 @@
         subject: "CMDB Device Report"
         body: "Attached is the latest CMDB device count Excel report."
         attach:
-          - /runner/netbox_device_report.xlsx
+          - /runner/cmdb_device_report.xlsx
       delegate_to: localhost
