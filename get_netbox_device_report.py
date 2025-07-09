@@ -37,6 +37,10 @@ while url:
     result = r.json()
     for device in result.get('results', []):
         site = device.get('site', {}).get('name', 'Unassigned Site')
+        # Debug: Dump a sample device to /tmp/device_debug.json
+        with open("/tmp/device_debug.json", "w") as f:
+            import json
+            json.dump(device, f, indent=2)
         role = device.get('device_role', {}).get('name', 'Unknown Role')
         site_device_counts[site][role] += 1
     url = result.get('next')
