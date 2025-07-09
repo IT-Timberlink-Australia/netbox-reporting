@@ -92,45 +92,63 @@ device_debug_file = "/runner/device_debug.json"
 with open(device_debug_file, "w") as dbg:
     dbg.write("")
 
-url = f"{NETBOX_URL.rstrip('/')}/api/dcim/devices/?limit=1000&expand=role,site"
+# Helper function to fetch paginated results from NetBox API
+def fetch_netbox_items(url, item_type):
+    all_items = []
+    while url:
+        r = requests.get(url, headers=headers, timeout=30)
+        r.raise_for_status()
+        result = r.json()
+        for item in result.get('results', []):
+            item['_item_type'] = item_type  # Track whether it's a device or VM
+            all_items.append(item)
+        url = result.get('next')
+    return all_items
 
-while url:
-    r = requests.get(url, headers=headers, timeout=30)
-    r.raise_for_status()
-    result = r.json()
-    for device in result.get('results', []):
-        with open(device_debug_file, "a") as dbg:
-            dbg.write(json.dumps(device, indent=2) + "\n\n")
+# Fetch Devices
+devices_url = f"{NETBOX_URL.rstrip('/')}/api/dcim/devices/?limit=1000&expand=role,site"
+devices = fetch_netbox_items(devices_url, "device")
 
-        site = device.get('site', {}).get('name', 'Unassigned Site')
+# Fetch Virtual Machines
+vms_url = f"{NETBOX_URL.rstrip('/')}/api/virtualization/virtual-machines/?limit=1000&expand=role,site"
+vms = fetch_netbox_items(vms_url, "vm")
 
-        # Filter: only process "active" devices
-        status = device.get('status', {}).get('value') if isinstance(device.get('status'), dict) else device.get('status')
-        if status not in ('active', 1):
-            continue
+# Merge
+all_items = devices + vms
 
-        # Try to get role_id from dict or int
+for item in all_items:
+    with open(device_debug_file, "a") as dbg:
+        dbg.write(json.dumps(item, indent=2) + "\n\n")
+
+    # For both devices and VMs, site is similar
+    site = item.get('site', {}).get('name', 'Unassigned Site')
+
+    # Filter: only process "active" devices/VMs
+    status = item.get('status', {}).get('value') if isinstance(item.get('status'), dict) else item.get('status')
+    if status not in ('active', 1):
+        continue
+
+    # Try to get role_id from dict or int
+    role_id = None
+    item_role = item.get('role', None)
+    if isinstance(item_role, dict):
+        role_id = item_role.get('id', None)
+    elif isinstance(item_role, int):
+        role_id = item_role
+    else:
         role_id = None
-        device_role = device.get('role', None)
-        if isinstance(device_role, dict):
-            role_id = device_role.get('id', None)
-        elif isinstance(device_role, int):
-            role_id = device_role
-        else:
-            role_id = None
 
-        # Filter: skip excluded roles
-        if role_id in EXCLUDED_ROLE_IDS:
-            continue
+    # Filter: skip excluded roles
+    if role_id in EXCLUDED_ROLE_IDS:
+        continue
 
-        if role_id is not None:
-            heading, subheading = get_heading_and_subheading(role_id)
-            site_device_counts[site][heading][subheading]['count'] += 1
-            site_device_counts[site][heading][subheading]['names'].append(device.get('name', 'Unknown Device'))
-        else:
-            site_device_counts[site]['Other']['Other']['count'] += 1
-            site_device_counts[site]['Other']['Other']['names'].append(device.get('name', 'Unknown Device'))
-    url = result.get('next')
+    if role_id is not None:
+        heading, subheading = get_heading_and_subheading(role_id)
+        site_device_counts[site][heading][subheading]['count'] += 1
+        site_device_counts[site][heading][subheading]['names'].append(item.get('name', 'Unknown Device'))
+    else:
+        site_device_counts[site]['Other']['Other']['count'] += 1
+        site_device_counts[site]['Other']['Other']['names'].append(item.get('name', 'Unknown Device'))
 
 # ---- PDF Generation ----
 pdf_buffer = io.BytesIO()
