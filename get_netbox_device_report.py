@@ -168,29 +168,56 @@ for item in all_items:
         site_device_counts[site]['Other']['Other']['devices'].append(device_info)
 
 # ---- Excel Generation ----
-import openpyxl
-from openpyxl.styles import Font, PatternFill, Alignment
-
 wb = openpyxl.Workbook()
-ws = wb.active
-ws.title = "NetBox Device Report"
+default_ws = wb.active
+default_ws.title = "All Sites"
 
 headers = [
     "Site", "Heading", "Subheading", "Device Name", "Description", "Primary IP",
     "Serial", "Backup Data - Primay", "Monitoring Required"
 ]
-ws.append(headers)
+default_ws.append(headers)
 
-# Style header row
 header_fill = PatternFill("solid", fgColor="00336699")
 header_font = Font(bold=True, color="FFFFFFFF")
-for cell in ws[1]:
+for cell in default_ws[1]:
     cell.font = header_font
     cell.fill = header_fill
     cell.alignment = Alignment(horizontal="center", vertical="center")
 
-# Write all devices as flat rows
+# Write all devices as flat rows to 'All Sites' worksheet
 for site in sorted(site_device_counts):
+    for heading in HEADING_ORDER:
+        if heading not in site_device_counts[site]:
+            continue
+        for subheading in DEVICE_ROLE_GROUPS[heading]:
+            devices = site_device_counts[site][heading][subheading]['devices']
+            for device in sorted(devices, key=lambda d: d['name']):
+                default_ws.append([
+                    site,
+                    heading,
+                    subheading,
+                    device['name'],
+                    short_desc(device.get('description', ''), 100),
+                    tick(device.get('primary_ip')),
+                    tick(device.get('serial')),
+                    tick(device.get('backup_primary')),
+                    tick(device.get('monitoring_required') is not False),
+                ])
+
+# Optional: auto-size columns in the default worksheet
+for col in default_ws.columns:
+    max_length = max(len(str(cell.value) or "") for cell in col)
+    default_ws.column_dimensions[col[0].column_letter].width = min(max_length + 4, 50)
+
+# ---- Create a worksheet for each site ----
+for site in sorted(site_device_counts):
+    ws = wb.create_sheet(title=site[:31])  # Excel worksheet name max length is 31
+    ws.append(headers)
+    for cell in ws[1]:
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center", vertical="center")
     for heading in HEADING_ORDER:
         if heading not in site_device_counts[site]:
             continue
@@ -208,11 +235,10 @@ for site in sorted(site_device_counts):
                     tick(device.get('backup_primary')),
                     tick(device.get('monitoring_required') is not False),
                 ])
-
-# Optional: auto-size columns
-for col in ws.columns:
-    max_length = max(len(str(cell.value) or "") for cell in col)
-    ws.column_dimensions[col[0].column_letter].width = min(max_length + 4, 50)
+    # Auto-size columns in each site worksheet
+    for col in ws.columns:
+        max_length = max(len(str(cell.value) or "") for cell in col)
+        ws.column_dimensions[col[0].column_letter].width = min(max_length + 4, 50)
 
 # Save file
 excel_file = "/runner/netbox_device_report.xlsx"
