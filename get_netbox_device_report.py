@@ -29,40 +29,52 @@ headers = {
     'Accept': 'application/json',
 }
 
+# ---- Heading Order ----
+HEADING_ORDER = [
+    "Gateway/Router",
+    "Switches",
+    "Physical Hosts",
+    "Virtual Machines",
+    "Storage Area Network",
+    "Network Attached Storage",
+    "Production Workstations",
+    "Uninterruptible Power Supply",
+]
+
 # ---- Device Role Grouping Mapping ----
 DEVICE_ROLE_GROUPS = {
+    "Gateway/Router": {
+        "Enterprise": [12],
+        "Operational": [34],
+    },
     "Switches": {
         "Enterprise Core": [5],
         "Enterprise Edge": [1],
         "Operational": [28],
     },
-    "Gateway/Router": {
-        "Enterprise": [12],
-        "Operational": [34],
-    },
-    "UPS": {
-        "Enterprise": [14],
-        "Operational": [44],
-    },
     "Physical Hosts": {
         "Enterprise": [6],
         "Operational": [43],
     },
-    "SAN": {
-        "Enterprise": [16],
-    },
-    "NAS": {
-        "Enterprise": [15],
-        "Operational": [41],
-    },
-    "VM": {
+    "Virtual Machines": {
         "Enterprise": [4, 19, 17, 20, 18, 33],
         "Operational": [35, 36, 37, 38, 39, 40],
     },
-    "Operational Workstations": {
+    "Storage Area Network": {
+        "Enterprise": [16],
+    },
+    "Network Attached Storage": {
+        "Enterprise": [15],
+        "Operational": [41],
+    },
+    "Production Workstations": {
         "Operational": [30],
         "Quality Assurance": [32],
         "Optimisation": [31],
+    },
+    "Uninterruptible Power Supply": {
+        "Enterprise": [14],
+        "Operational": [44],
     },
 }
 
@@ -76,18 +88,16 @@ def get_heading_and_subheading(role_id):
 # ---- Main Data Gathering ----
 site_device_counts = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
 device_debug_file = "/runner/device_debug.json"
-# Overwrite debug file at start
 with open(device_debug_file, "w") as dbg:
     dbg.write("")
 
-url = f"{NETBOX_URL.rstrip('/')}/api/dcim/devices/?limit=1000&expand=device_role,site"
+url = f"{NETBOX_URL.rstrip('/')}/api/dcim/devices/?limit=1000&expand=role,site"
 
 while url:
     r = requests.get(url, headers=headers, timeout=30)
     r.raise_for_status()
     result = r.json()
     for device in result.get('results', []):
-        # Write device to debug file (append mode)
         with open(device_debug_file, "a") as dbg:
             dbg.write(json.dumps(device, indent=2) + "\n\n")
 
@@ -116,16 +126,14 @@ doc = SimpleDocTemplate(pdf_buffer, pagesize=letter)
 styles = getSampleStyleSheet()
 story = []
 
-story.append(Paragraph("NetBox Device Count by Site, Heading, and Subheading", styles['Title']))
-story.append(Spacer(1, 24))
-date_str = datetime.now().strftime("%B %d, %Y")
-story.append(Paragraph(f"Generated on: {date_str}", styles['Normal']))
+# Title
+story.append(Paragraph("Timberlink CMDB Active Production Device Report", styles['Title']))
 story.append(Spacer(1, 24))
 
 total_devices = 0
 for site in sorted(site_device_counts):
     story.append(Paragraph(f"Site: {site}", styles['Heading2']))
-    for heading in DEVICE_ROLE_GROUPS:
+    for heading in HEADING_ORDER:
         if heading not in site_device_counts[site]:
             continue
         story.append(Paragraph(f"{heading}", styles['Heading3']))
@@ -138,13 +146,17 @@ for site in sorted(site_device_counts):
         if bullet_points:
             story.append(ListFlowable(bullet_points, bulletType='bullet'))
         story.append(Spacer(1, 8))
-    # Show "Other" category if present
     if "Other" in site_device_counts[site] and site_device_counts[site]["Other"]["Other"] > 0:
         story.append(Paragraph("Other: {}".format(site_device_counts[site]["Other"]["Other"]), styles['Normal']))
     story.append(Spacer(1, 12))
 
 story.append(Spacer(1, 24))
 story.append(Paragraph(f"<b>Total Devices in All Sites: {total_devices}</b>", styles['Normal']))
+
+# Footer with date
+story.append(Spacer(1, 12))
+date_str = datetime.now().strftime("%B %d, %Y")
+story.append(Paragraph(f"Generated on: {date_str}", styles['Normal']))
 
 doc.build(story)
 pdf_buffer.seek(0)
