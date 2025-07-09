@@ -25,6 +25,14 @@
         NETBOX_TOKEN: "{{ netbox_token }}"
       script: get_netbox_device_report.py
 
+    - name: Stat netbox PDF file
+      stat:
+        path: /runner/netbox_device_report.pdf
+      register: pdfstat
+
+    - debug:
+        var: pdfstat
+
     - name: Fetch generated PDF report to AWX artifacts directory
       fetch:
         src: /runner/netbox_device_report.pdf
