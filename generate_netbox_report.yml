@@ -23,6 +23,11 @@
       pip:
         name: openpyxl
         executable: pip3
+      
+    - name: Ensure pytz is installed
+      pip:
+        name: pytz
+        executable: pip3
 
     - name: Run device report script
       environment:
