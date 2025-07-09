@@ -10,6 +10,7 @@ try:
     import openpyxl
     from openpyxl.styles import Font, PatternFill, Alignment
     from openpyxl.utils import get_column_letter
+    from openpyxl.formatting.rule import CellIsRule
 except ImportError:
     print("openpyxl is not installed. Run 'pip install openpyxl' and retry.", file=sys.stderr)
     sys.exit(1)
@@ -184,6 +185,114 @@ title_font = Font(bold=True, size=14)
 group_font = Font(bold=True, color="000000", size=12)
 subhead_font = Font(bold=True, color="333399")
 
+# ---- Add Summary Worksheet ----
+summary_ws = wb.create_sheet(title="Summary", index=0)
+summary_headers = [
+    "Site", "Heading", "Subheading", "Device Count",
+    "% Primary IP ✓", "% Serial ✓", "% Backup ✓", "% Monitoring ✓"
+]
+summary_ws.append(summary_headers)
+for cell in summary_ws[1]:
+    cell.font = header_font
+    cell.fill = header_fill
+    cell.alignment = Alignment(horizontal="center", vertical="center")
+
+summary_rows = []
+for site in sorted(site_device_counts):
+    for heading in HEADING_ORDER + ["Other"]:
+        if heading not in site_device_counts[site]:
+            continue
+        sub_map = DEVICE_ROLE_GROUPS.get(heading, {"Other": []}) if heading != "Other" else {"Other": []}
+        for subheading in (sub_map if heading != "Other" else ["Other"]):
+            devices = site_device_counts[site][heading][subheading]['devices'] if subheading in site_device_counts[site][heading] else []
+            count = len(devices)
+            if count == 0:
+                continue
+            ip_tick = sum(1 for d in devices if d.get('primary_ip'))
+            serial_tick = sum(1 for d in devices if d.get('serial'))
+            backup_tick = sum(1 for d in devices if d.get('backup_primary'))
+            monitor_tick = sum(1 for d in devices if d.get('monitoring_required') is not False)
+            row = [
+                site,
+                heading,
+                subheading,
+                count,
+                f"{(ip_tick/count)*100:.1f}%",
+                f"{(serial_tick/count)*100:.1f}%",
+                f"{(backup_tick/count)*100:.1f}%",
+                f"{(monitor_tick/count)*100:.1f}%",
+            ]
+            summary_ws.append(row)
+            summary_rows.append(row)
+
+# ---- Add Totals Across Sites Row ----
+total_count = 0
+total_ip_tick = 0
+total_serial_tick = 0
+total_backup_tick = 0
+total_monitor_tick = 0
+
+for row in summary_rows:
+    count = int(row[3] or 0)
+    total_count += count
+    try:
+        total_ip_tick     += count * float((row[4] or "0%").replace("%", "")) / 100
+        total_serial_tick += count * float((row[5] or "0%").replace("%", "")) / 100
+        total_backup_tick += count * float((row[6] or "0%").replace("%", "")) / 100
+        total_monitor_tick += count * float((row[7] or "0%").replace("%", "")) / 100
+    except Exception:
+        pass
+
+if total_count > 0:
+    total_row = [
+        "ALL SITES",
+        "",
+        "",
+        total_count,
+        f"{(total_ip_tick/total_count)*100:.1f}%",
+        f"{(total_serial_tick/total_count)*100:.1f}%",
+        f"{(total_backup_tick/total_count)*100:.1f}%",
+        f"{(total_monitor_tick/total_count)*100:.1f}%"
+    ]
+else:
+    total_row = ["ALL SITES", "", "", 0, "0%", "0%", "0%", "0%"]
+
+summary_ws.append(total_row)
+for col_idx in range(1, summary_ws.max_column + 1):
+    cell = summary_ws.cell(row=summary_ws.max_row, column=col_idx)
+    cell.font = Font(bold=True, color="00336699")
+    cell.alignment = Alignment(horizontal="center", vertical="center")
+
+# ---- Conditional Formatting for Compliance % Columns ----
+last_row = summary_ws.max_row
+for col_letter in ['E', 'F', 'G', 'H']:
+    summary_ws.conditional_formatting.add(
+        f"{col_letter}2:{col_letter}{last_row}",
+        CellIsRule(operator='lessThan', formula=['80'], fill=PatternFill(start_color='FF9999', end_color='FF9999', fill_type='solid'))
+    )
+    summary_ws.conditional_formatting.add(
+        f"{col_letter}2:{col_letter}{last_row}",
+        CellIsRule(operator='between', formula=['80', '95'], fill=PatternFill(start_color='FFEB9C', end_color='FFEB9C', fill_type='solid'))
+    )
+    summary_ws.conditional_formatting.add(
+        f"{col_letter}2:{col_letter}{last_row}",
+        CellIsRule(operator='greaterThanOrEqual', formula=['95'], fill=PatternFill(start_color='C6EFCE', end_color='C6EFCE', fill_type='solid'))
+    )
+
+# Auto-size columns for summary
+for col_idx in range(1, summary_ws.max_column + 1):
+    col_letter = get_column_letter(col_idx)
+    max_length = 0
+    for row in summary_ws.iter_rows(min_row=1, max_row=summary_ws.max_row, min_col=col_idx, max_col=col_idx):
+        for cell in row:
+            try:
+                if cell.value and len(str(cell.value)) > max_length:
+                    max_length = len(str(cell.value))
+            except Exception:
+                pass
+    summary_ws.column_dimensions[col_letter].width = min(max_length + 4, 50)
+
+# ---- Per-Site Worksheets ----
 for site in sorted(site_device_counts):
     ws = wb.create_sheet(title=site[:31])
     ws.append([f"{site} Device Report"])
@@ -198,7 +307,6 @@ for site in sorted(site_device_counts):
             devices = site_device_counts[site][heading][subheading]['devices']
             if not devices:
                 continue
-            # Group+subheading title
             ws.append([f"{heading} - {subheading}"])
             ws.merge_cells(start_row=rownum, start_column=1, end_row=rownum, end_column=len(headers))
             ws[f'A{rownum}'].font = subhead_font
@@ -233,7 +341,6 @@ for site in sorted(site_device_counts):
                     cell.alignment = Alignment(horizontal="center", vertical="center")
                 rownum += 1
 
-            # Blank row after each table
             ws.append([])
             rownum += 1
 
@@ -245,7 +352,6 @@ for site in sorted(site_device_counts):
         ws[f'A{rownum}'].font = subhead_font
         rownum += 1
 
-        # Table header
         for colidx, head in enumerate(headers, 1):
             cell = ws.cell(row=rownum, column=colidx, value=head)
             cell.font = header_font
