@@ -16,7 +16,7 @@ except ImportError:
     sys.exit(1)
 
 # --- Config ---
-NETBOX_URL = os.environ.get('NETBOX_URL')
+NETBOX_URL = os.environ.get('NETBOX_API')
 NETBOX_TOKEN = os.environ.get('NETBOX_TOKEN')
 
 if not NETBOX_URL or not NETBOX_TOKEN:
