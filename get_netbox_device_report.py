@@ -10,7 +10,7 @@ import json
 
 try:
     from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, ListFlowable, ListItem, PageBreak
-    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib.pagesizes import letter
 except ImportError:
     print("reportlab is not installed. Run 'pip install reportlab' and retry.", file=sys.stderr)
@@ -98,6 +98,11 @@ def get_heading_and_subheading(role_id):
 def tick(value):
     return "✓" if value else "✗"
 
+def short_desc(desc, length=30):
+    if desc and len(desc) > length:
+        return desc[:length-3] + "..."
+    return desc or ""
+
 # ---- Main Data Gathering ----
 site_device_counts = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: {'count': 0, 'names': []})))
 device_debug_file = "/runner/device_debug.json"
@@ -155,8 +160,8 @@ for item in all_items:
         'description': item.get('description', ''),
         'primary_ip': item.get('primary_ip'),
         'serial': item.get('serial'),
-        'backup_primary': cf.get('last_backup_data_prim'),  # <-- updated field name
-        'monitoring_required': cf.get('mon_required'),      # <-- updated field name
+        'backup_primary': cf.get('last_backup_data_prim'),  # updated field name
+        'monitoring_required': cf.get('mon_required'),      # updated field name
     }
 
     if role_id is not None:
@@ -171,16 +176,16 @@ for item in all_items:
 pdf_buffer = io.BytesIO()
 doc = SimpleDocTemplate(pdf_buffer, pagesize=letter)
 styles = getSampleStyleSheet()
+mono_style = ParagraphStyle('Mono', parent=styles['Normal'], fontName='Courier', fontSize=9)
+
 story = []
 
 # Title
 story.append(Paragraph("Timberlink CMDB Active Production Device Report", styles['Title']))
 story.append(Spacer(1, 24))
 
-# Table column titles
 col_titles = (
-    "<b>Name</b> | <b>Description</b> | <b>IP</b> | <b>Serial</b> | "
-    "<b>Backup</b> | <b>Monitoring</b>"
+    "<b>Name           </b>| <b>Description                   </b>| <b>IP</b> | <b>Serial</b> | <b>Backup</b> | <b>Monitoring</b>"
 )
 
 total_devices = 0
@@ -196,45 +201,41 @@ for idx, site in enumerate(site_list):
             data = site_device_counts[site][heading].get(subheading, {'count': 0, 'names': []})
             count = data['count']
             if count > 0:
-                bullet_points.append(ListItem(Paragraph(f"{subheading}: {count}", styles['Normal'])))
-                # Add header for columns
-                bullet_points.append(ListItem(Paragraph(col_titles, styles['Normal'])))
-                # List device info, formatted as columns
+                bullet_points.append(ListItem(Paragraph(f"{subheading}: {count}", mono_style)))
+                bullet_points.append(ListItem(Paragraph(col_titles, mono_style)))
                 for device in sorted(data['names'], key=lambda d: d['name']):
-                    description = device.get('description', '')
-                    has_primary_ip = tick(device.get('primary_ip'))
-                    has_serial = tick(device.get('serial'))
-                    has_backup = tick(device.get('backup_primary'))
+                    name = (device['name'] or '')[:15].ljust(15)
+                    description = short_desc(device.get('description', ''), 30).ljust(30)
+                    has_primary_ip = tick(device.get('primary_ip')).center(3)
+                    has_serial = tick(device.get('serial')).center(6)
+                    has_backup = tick(device.get('backup_primary')).center(6)
                     mon_req = device.get('monitoring_required')
-                    monitoring_required = "✗" if mon_req is False else "✓"
+                    monitoring_required = ("✗" if mon_req is False else "✓").center(10)
                     device_line = (
-                        f"<b>{device['name']}</b> | {description} | {has_primary_ip} | "
-                        f"{has_serial} | {has_backup} | {monitoring_required}"
+                        f"{name} | {description} | {has_primary_ip} | {has_serial} | {has_backup} | {monitoring_required}"
                     )
-                    bullet_points.append(ListItem(Paragraph(device_line, styles['Normal'])))
+                    bullet_points.append(ListItem(Paragraph(device_line, mono_style)))
                 total_devices += count
         if bullet_points:
             story.append(ListFlowable(bullet_points, bulletType='bullet'))
         story.append(Spacer(1, 8))
-    # Show "Other" category if present
     if "Other" in site_device_counts[site] and site_device_counts[site]["Other"]["Other"]['count'] > 0:
         count = site_device_counts[site]["Other"]["Other"]['count']
         names = site_device_counts[site]["Other"]["Other"]['names']
-        story.append(Paragraph("Other: {}".format(count), styles['Normal']))
-        # Add header for columns
-        story.append(Paragraph(col_titles, styles['Normal']))
+        story.append(Paragraph("Other: {}".format(count), mono_style))
+        story.append(Paragraph(col_titles, mono_style))
         for device in sorted(names, key=lambda d: d['name']):
-            description = device.get('description', '')
-            has_primary_ip = tick(device.get('primary_ip'))
-            has_serial = tick(device.get('serial'))
-            has_backup = tick(device.get('backup_primary'))
+            name = (device['name'] or '')[:15].ljust(15)
+            description = short_desc(device.get('description', ''), 30).ljust(30)
+            has_primary_ip = tick(device.get('primary_ip')).center(3)
+            has_serial = tick(device.get('serial')).center(6)
+            has_backup = tick(device.get('backup_primary')).center(6)
             mon_req = device.get('monitoring_required')
-            monitoring_required = "✗" if mon_req is False else "✓"
+            monitoring_required = ("✗" if mon_req is False else "✓").center(10)
             device_line = (
-                f"<b>{device['name']}</b> | {description} | {has_primary_ip} | "
-                f"{has_serial} | {has_backup} | {monitoring_required}"
+                f"{name} | {description} | {has_primary_ip} | {has_serial} | {has_backup} | {monitoring_required}"
             )
-            story.append(Paragraph(device_line, styles['Normal']))
+            story.append(Paragraph(device_line, mono_style))
         story.append(Spacer(1, 8))
     story.append(Spacer(1, 12))
     if idx != len(site_list) - 1:
