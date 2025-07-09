@@ -86,7 +86,7 @@ def get_heading_and_subheading(role_id):
     return "Other", "Other"
 
 # ---- Main Data Gathering ----
-site_device_counts = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
+site_device_counts = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: {'count': 0, 'names': []})))
 device_debug_file = "/runner/device_debug.json"
 with open(device_debug_file, "w") as dbg:
     dbg.write("")
@@ -115,9 +115,11 @@ while url:
 
         if role_id is not None:
             heading, subheading = get_heading_and_subheading(role_id)
-            site_device_counts[site][heading][subheading] += 1
+            site_device_counts[site][heading][subheading]['count'] += 1
+            site_device_counts[site][heading][subheading]['names'].append(device.get('name', 'Unknown Device'))
         else:
-            site_device_counts[site]['Other']['Other'] += 1
+            site_device_counts[site]['Other']['Other']['count'] += 1
+            site_device_counts[site]['Other']['Other']['names'].append(device.get('name', 'Unknown Device'))
     url = result.get('next')
 
 # ---- PDF Generation ----
@@ -139,15 +141,26 @@ for site in sorted(site_device_counts):
         story.append(Paragraph(f"{heading}", styles['Heading3']))
         bullet_points = []
         for subheading in DEVICE_ROLE_GROUPS[heading]:
-            count = site_device_counts[site][heading].get(subheading, 0)
+            data = site_device_counts[site][heading].get(subheading, {'count': 0, 'names': []})
+            count = data['count']
             if count > 0:
                 bullet_points.append(ListItem(Paragraph(f"{subheading}: {count}", styles['Normal'])))
+                # List device names indented under the count
+                name_bullets = [ListItem(Paragraph(name, styles['Normal'])) for name in sorted(data['names'])]
+                if name_bullets:
+                    bullet_points.append(ListFlowable(name_bullets, bulletType='bullet', leftIndent=18))
                 total_devices += count
         if bullet_points:
             story.append(ListFlowable(bullet_points, bulletType='bullet'))
         story.append(Spacer(1, 8))
-    if "Other" in site_device_counts[site] and site_device_counts[site]["Other"]["Other"] > 0:
-        story.append(Paragraph("Other: {}".format(site_device_counts[site]["Other"]["Other"]), styles['Normal']))
+    # Show "Other" category if present
+    if "Other" in site_device_counts[site] and site_device_counts[site]["Other"]["Other"]['count'] > 0:
+        count = site_device_counts[site]["Other"]["Other"]['count']
+        names = site_device_counts[site]["Other"]["Other"]['names']
+        story.append(Paragraph("Other: {}".format(count), styles['Normal']))
+        name_bullets = [ListItem(Paragraph(name, styles['Normal'])) for name in sorted(names)]
+        if name_bullets:
+            story.append(ListFlowable(name_bullets, bulletType='bullet', leftIndent=18))
     story.append(Spacer(1, 12))
 
 story.append(Spacer(1, 24))
