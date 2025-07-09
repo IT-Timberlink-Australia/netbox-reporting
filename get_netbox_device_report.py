@@ -11,6 +11,7 @@ try:
     from openpyxl.styles import Font, PatternFill, Alignment
     from openpyxl.utils import get_column_letter
     from openpyxl.formatting.rule import CellIsRule
+    from openpyxl.styles.numbers import BUILTIN_FORMATS
 except ImportError:
     print("openpyxl is not installed. Run 'pip install openpyxl' and retry.", file=sys.stderr)
     sys.exit(1)
@@ -176,7 +177,7 @@ wb.remove(wb.active)  # Remove default sheet
 
 headers = [
     "Device Name", "Description", "Primary IP",
-    "Serial", "Backup Data - Primay", "Monitoring Status"
+    "Serial", "Backup Data - Status", "Monitoring Status"
 ]
 
 header_fill = PatternFill("solid", fgColor="00336699")
@@ -217,10 +218,10 @@ for site in sorted(site_device_counts):
                 heading,
                 subheading,
                 count,
-                f"{(ip_tick/count)*100:.1f}%",
-                f"{(serial_tick/count)*100:.1f}%",
-                f"{(backup_tick/count)*100:.1f}%",
-                f"{(monitor_tick/count)*100:.1f}%",
+                (ip_tick/count) if count else 0,
+                (serial_tick/count) if count else 0,
+                (backup_tick/count) if count else 0,
+                (monitor_tick/count) if count else 0,
             ]
             summary_ws.append(row)
             summary_rows.append(row)
@@ -236,10 +237,10 @@ for row in summary_rows:
     count = int(row[3] or 0)
     total_count += count
     try:
-        total_ip_tick     += count * float((row[4] or "0%").replace("%", "")) / 100
-        total_serial_tick += count * float((row[5] or "0%").replace("%", "")) / 100
-        total_backup_tick += count * float((row[6] or "0%").replace("%", "")) / 100
-        total_monitor_tick += count * float((row[7] or "0%").replace("%", "")) / 100
+        total_ip_tick     += count * float(row[4] or 0)
+        total_serial_tick += count * float(row[5] or 0)
+        total_backup_tick += count * float(row[6] or 0)
+        total_monitor_tick += count * float(row[7] or 0)
     except Exception:
         pass
 
@@ -249,13 +250,13 @@ if total_count > 0:
         "",
         "",
         total_count,
-        f"{(total_ip_tick/total_count)*100:.1f}%",
-        f"{(total_serial_tick/total_count)*100:.1f}%",
-        f"{(total_backup_tick/total_count)*100:.1f}%",
-        f"{(total_monitor_tick/total_count)*100:.1f}%"
+        total_ip_tick/total_count,
+        total_serial_tick/total_count,
+        total_backup_tick/total_count,
+        total_monitor_tick/total_count
     ]
 else:
-    total_row = ["ALL SITES", "", "", 0, "0%", "0%", "0%", "0%"]
+    total_row = ["ALL SITES", "", "", 0, 0, 0, 0, 0]
 
 summary_ws.append(total_row)
 for col_idx in range(1, summary_ws.max_column + 1):
@@ -263,20 +264,25 @@ for col_idx in range(1, summary_ws.max_column + 1):
     cell.font = Font(bold=True, color="00336699")
     cell.alignment = Alignment(horizontal="center", vertical="center")
 
+# ---- Set Percentage Format ----
+for row in summary_ws.iter_rows(min_row=2, max_row=summary_ws.max_row, min_col=5, max_col=8):
+    for cell in row:
+        cell.number_format = '0.0%'
+
 # ---- Conditional Formatting for Compliance % Columns ----
 last_row = summary_ws.max_row
 for col_letter in ['E', 'F', 'G', 'H']:
     summary_ws.conditional_formatting.add(
         f"{col_letter}2:{col_letter}{last_row}",
-        CellIsRule(operator='lessThan', formula=['80%'], fill=PatternFill(start_color='FF9999', end_color='FF9999', fill_type='solid'))
+        CellIsRule(operator='lessThan', formula=['0.8'], fill=PatternFill(start_color='FF9999', end_color='FF9999', fill_type='solid'))
     )
     summary_ws.conditional_formatting.add(
         f"{col_letter}2:{col_letter}{last_row}",
-        CellIsRule(operator='between', formula=['80%', '95%'], fill=PatternFill(start_color='FFEB9C', end_color='FFEB9C', fill_type='solid'))
+        CellIsRule(operator='between', formula=['0.8', '0.95'], fill=PatternFill(start_color='FFEB9C', end_color='FFEB9C', fill_type='solid'))
     )
     summary_ws.conditional_formatting.add(
         f"{col_letter}2:{col_letter}{last_row}",
-        CellIsRule(operator='greaterThanOrEqual', formula=['95%'], fill=PatternFill(start_color='C6EFCE', end_color='C6EFCE', fill_type='solid'))
+        CellIsRule(operator='greaterThanOrEqual', formula=['0.95'], fill=PatternFill(start_color='C6EFCE', end_color='C6EFCE', fill_type='solid'))
     )
 
 # Auto-size columns for summary
