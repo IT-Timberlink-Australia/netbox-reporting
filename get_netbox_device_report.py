@@ -19,6 +19,7 @@ except ImportError:
 # ---- Configuration ----
 NETBOX_URL = os.environ.get('NETBOX_URL') or os.environ.get('NETBOX_API')
 NETBOX_TOKEN = os.environ.get('NETBOX_TOKEN')
+EXCLUDED_ROLE_IDS = {2, 11, 24, 26}
 
 if not NETBOX_URL or not NETBOX_TOKEN:
     print("Missing NETBOX_URL (or NETBOX_API) or NETBOX_TOKEN environment variables.", file=sys.stderr)
@@ -103,6 +104,11 @@ while url:
 
         site = device.get('site', {}).get('name', 'Unassigned Site')
 
+        # Filter: only process "active" devices
+        status = device.get('status', {}).get('value') if isinstance(device.get('status'), dict) else device.get('status')
+        if status not in ('active', 1):
+            continue
+
         # Try to get role_id from dict or int
         role_id = None
         device_role = device.get('role', None)
@@ -112,6 +118,10 @@ while url:
             role_id = device_role
         else:
             role_id = None
+
+        # Filter: skip excluded roles
+        if role_id in EXCLUDED_ROLE_IDS:
+            continue
 
         if role_id is not None:
             heading, subheading = get_heading_and_subheading(role_id)
