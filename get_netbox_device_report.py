@@ -172,6 +172,8 @@ story = []
 story.append(Paragraph("Timberlink CMDB Active Production Device Report", styles['Title']))
 story.append(Spacer(1, 24))
 
+total_devices = 0
+
 site_list = sorted(site_device_counts)
 for idx, site in enumerate(site_list):
     story.append(Paragraph(f"Site: {site}", styles['Heading2']))
