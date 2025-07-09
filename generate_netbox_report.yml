@@ -40,5 +40,5 @@
         subject: "NetBox Device Report"
         body: "Attached is the latest NetBox device count PDF report."
         attach:
-          - /tmp/netbox_device_report.pdf
+          - /runner/netbox_device_report.pdf
       delegate_to: localhost
