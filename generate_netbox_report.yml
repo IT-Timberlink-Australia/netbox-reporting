@@ -30,6 +30,12 @@
         src: /runner/netbox_device_report.pdf
         dest: netbox_device_report.pdf
         flat: yes
+
+    - name: Fetch generated JSON report to AWX artifacts directory
+      fetch:
+        src: /runner/device_debug.json
+        dest: device_debug.json
+        flat: yes
     
     - name: Email the PDF report
       community.general.mail:
