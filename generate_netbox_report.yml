@@ -14,9 +14,14 @@
         name: reportlab
         executable: pip3
 
+    - name: Ensure 'requests' is installed
+      pip:
+        name: requests
+        executable: pip3
+
     - name: Run device report script
       environment:
-        NETBOX_URL: "{{ netbox_url }}"
+        NETBOX_URL: "{{ netbox_api }}"
         NETBOX_TOKEN: "{{ netbox_token }}"
       script: get_netbox_device_report.py
 
