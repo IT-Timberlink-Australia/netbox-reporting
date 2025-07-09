@@ -155,9 +155,8 @@ for item in all_items:
         'description': item.get('description', ''),
         'primary_ip': item.get('primary_ip'),
         'serial': item.get('serial'),
-        # Adjust these custom field keys as needed!
-        'backup_primary': cf.get('backup_data_primay'),
-        'monitoring_required': cf.get('monitoring_required'),
+        'backup_primary': cf.get('last_backup_data_prim'),  # <-- updated field name
+        'monitoring_required': cf.get('mon_required'),      # <-- updated field name
     }
 
     if role_id is not None:
