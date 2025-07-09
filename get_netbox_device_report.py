@@ -6,6 +6,7 @@ import requests
 from collections import defaultdict
 from datetime import datetime
 import io
+import json
 
 try:
     from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, ListFlowable, ListItem
@@ -65,7 +66,6 @@ DEVICE_ROLE_GROUPS = {
     },
 }
 
-# ---- Helper Functions ----
 def get_heading_and_subheading(role_id):
     for heading, sub_map in DEVICE_ROLE_GROUPS.items():
         for subheading, role_ids in sub_map.items():
@@ -75,6 +75,10 @@ def get_heading_and_subheading(role_id):
 
 # ---- Main Data Gathering ----
 site_device_counts = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
+device_debug_file = "/runner/device_debug.json"
+# Overwrite debug file at start
+with open(device_debug_file, "w") as dbg:
+    dbg.write("")
 
 url = f"{NETBOX_URL.rstrip('/')}/api/dcim/devices/?limit=1000&expand=device_role,site"
 
@@ -83,8 +87,22 @@ while url:
     r.raise_for_status()
     result = r.json()
     for device in result.get('results', []):
+        # Write device to debug file (append mode)
+        with open(device_debug_file, "a") as dbg:
+            dbg.write(json.dumps(device, indent=2) + "\n\n")
+
         site = device.get('site', {}).get('name', 'Unassigned Site')
-        role_id = device.get('device_role')
+
+        # Try to get role_id from dict or int
+        role_id = None
+        device_role = device.get('device_role', None)
+        if isinstance(device_role, dict):
+            role_id = device_role.get('id', None)
+        elif isinstance(device_role, int):
+            role_id = device_role
+        else:
+            role_id = None
+
         if role_id is not None:
             heading, subheading = get_heading_and_subheading(role_id)
             site_device_counts[site][heading][subheading] += 1
@@ -96,40 +114,3 @@ while url:
 pdf_buffer = io.BytesIO()
 doc = SimpleDocTemplate(pdf_buffer, pagesize=letter)
 styles = getSampleStyleSheet()
-story = []
-
-story.append(Paragraph("NetBox Device Count by Site, Heading, and Subheading", styles['Title']))
-story.append(Spacer(1, 24))
-date_str = datetime.now().strftime("%B %d, %Y")
-story.append(Paragraph(f"Generated on: {date_str}", styles['Normal']))
-story.append(Spacer(1, 24))
-
-total_devices = 0
-for site in sorted(site_device_counts):
-    story.append(Paragraph(f"Site: {site}", styles['Heading2']))
-    for heading in DEVICE_ROLE_GROUPS:
-        if heading not in site_device_counts[site]:
-            continue
-        story.append(Paragraph(f"{heading}", styles['Heading3']))
-        bullet_points = []
-        for subheading in DEVICE_ROLE_GROUPS[heading]:
-            count = site_device_counts[site][heading].get(subheading, 0)
-            if count > 0:
-                bullet_points.append(ListItem(Paragraph(f"{subheading}: {count}", styles['Normal'])))
-                total_devices += count
-        if bullet_points:
-            story.append(ListFlowable(bullet_points, bulletType='bullet'))
-        story.append(Spacer(1, 8))
-    # Show "Other" category if present
-    if "Other" in site_device_counts[site] and site_device_counts[site]["Other"]["Other"] > 0:
-        story.append(Paragraph("Other: {}".format(site_device_counts[site]["Other"]["Other"]), styles['Normal']))
-    story.append(Spacer(1, 12))
-
-story.append(Spacer(1, 24))
-story.append(Paragraph(f"<b>Total Devices in All Sites: {total_devices}</b>", styles['Normal']))
-
-doc.build(story)
-pdf_buffer.seek(0)
-with open("/runner/netbox_device_report.pdf", "wb") as f:
-    f.write(pdf_buffer.read())
-print("Report generated: /runner/netbox_device_report.pdf")
