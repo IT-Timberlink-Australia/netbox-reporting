@@ -30,10 +30,10 @@
         NETBOX_TOKEN: "{{ netbox_token }}"
       script: get_netbox_device_report.py
 
-    - name: Fetch generated PDF report to AWX artifacts directory
+    - name: Fetch generated Excel report to AWX artifacts directory
       fetch:
-        src: /runner/netbox_device_report.xlsx
-        dest: netbox_device_report.xlsx
+        src: /runner/cmdb_device_report.xlsx
+        dest: cmdb_device_report.xlsx
         flat: yes
 
     - name: Email the PDF report
@@ -42,8 +42,8 @@
         port: 25               
         to: cjones@timberlinkaustralia.com.au        
         from: awx@timberlinkaustralia.com.au       
-        subject: "NetBox Device Report"
-        body: "Attached is the latest NetBox device count PDF report."
+        subject: "CMDB Device Report"
+        body: "Attached is the latest CMDB device count Excel report."
         attach:
           - /runner/netbox_device_report.xlsx
       delegate_to: localhost

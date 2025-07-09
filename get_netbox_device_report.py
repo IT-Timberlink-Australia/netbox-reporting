@@ -176,7 +176,7 @@ wb.remove(wb.active)  # Remove default sheet
 
 headers = [
     "Device Name", "Description", "Primary IP",
-    "Serial", "Backup Data - Primay", "Monitoring Required"
+    "Serial", "Backup Data - Primay", "Monitoring Status"
 ]
 
 header_fill = PatternFill("solid", fgColor="00336699")
@@ -268,15 +268,15 @@ last_row = summary_ws.max_row
 for col_letter in ['E', 'F', 'G', 'H']:
     summary_ws.conditional_formatting.add(
         f"{col_letter}2:{col_letter}{last_row}",
-        CellIsRule(operator='lessThan', formula=['80'], fill=PatternFill(start_color='FF9999', end_color='FF9999', fill_type='solid'))
+        CellIsRule(operator='lessThan', formula=['80%'], fill=PatternFill(start_color='FF9999', end_color='FF9999', fill_type='solid'))
     )
     summary_ws.conditional_formatting.add(
         f"{col_letter}2:{col_letter}{last_row}",
-        CellIsRule(operator='between', formula=['80', '95'], fill=PatternFill(start_color='FFEB9C', end_color='FFEB9C', fill_type='solid'))
+        CellIsRule(operator='between', formula=['80%', '95%'], fill=PatternFill(start_color='FFEB9C', end_color='FFEB9C', fill_type='solid'))
     )
     summary_ws.conditional_formatting.add(
         f"{col_letter}2:{col_letter}{last_row}",
-        CellIsRule(operator='greaterThanOrEqual', formula=['95'], fill=PatternFill(start_color='C6EFCE', end_color='C6EFCE', fill_type='solid'))
+        CellIsRule(operator='greaterThanOrEqual', formula=['95%'], fill=PatternFill(start_color='C6EFCE', end_color='C6EFCE', fill_type='solid'))
     )
 
 # Auto-size columns for summary
@@ -394,6 +394,6 @@ for site in sorted(site_device_counts):
                     pass
         ws.column_dimensions[col_letter].width = min(max_length + 4, 50)
 
-excel_file = "/runner/netbox_device_report.xlsx"
+excel_file = "/runner/cmdb_device_report.xlsx"
 wb.save(excel_file)
 print("Excel report generated:", excel_file)
