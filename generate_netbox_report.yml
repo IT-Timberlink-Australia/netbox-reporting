@@ -4,7 +4,7 @@
   gather_facts: no
 
   vars:
-    netbox_url: "{{ lookup('env', 'NETBOX_URL') | default('https://netbox.example.com', true) }}"
+    netbox_url: "{{ lookup('env', 'NETBOX_API') | default('https://netbox.example.com', true) }}"
     netbox_token: "{{ lookup('env', 'NETBOX_TOKEN') | default(omit, true) }}"
 
   tasks:
