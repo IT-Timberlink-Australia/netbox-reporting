@@ -30,7 +30,7 @@ headers = {
 
 # --- Gather data ---
 site_device_counts = defaultdict(lambda: defaultdict(int))
-url = f"{NETBOX_URL.rstrip('/')}/api/dcim/devices/?limit=1000"
+url = f"{NETBOX_URL.rstrip('/')}/api/dcim/devices/?limit=1000&expand=device_role"
 while url:
     r = requests.get(url, headers=headers, timeout=30)
     r.raise_for_status()
