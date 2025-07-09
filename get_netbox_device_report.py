@@ -169,49 +169,52 @@ for item in all_items:
         site_device_counts[site]['Other']['Other']['count'] += 1
         site_device_counts[site]['Other']['Other']['devices'].append(device_info)
 
-# ---- Excel Generation: One sheet per site, table per heading ----
+# ---- Excel Generation: One sheet per site, table per heading+subheading ----
 wb = openpyxl.Workbook()
 wb.remove(wb.active)  # Remove default sheet
 
 headers = [
-    "Subheading", "Device Name", "Description", "Primary IP",
+    "Device Name", "Description", "Primary IP",
     "Serial", "Backup Data - Primay", "Monitoring Required"
 ]
 
 header_fill = PatternFill("solid", fgColor="00336699")
 header_font = Font(bold=True, color="FFFFFFFF")
-heading_font = Font(bold=True, color="000000", size=12)
+title_font = Font(bold=True, size=14)
+group_font = Font(bold=True, color="000000", size=12)
+subhead_font = Font(bold=True, color="333399")
 
 for site in sorted(site_device_counts):
     ws = wb.create_sheet(title=site[:31])
     ws.append([f"{site} Device Report"])
     ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(headers))
-    ws['A1'].font = Font(bold=True, size=14)
+    ws['A1'].font = title_font
     rownum = 2
 
     for heading in HEADING_ORDER:
         if heading not in site_device_counts[site]:
             continue
-        # Heading row
-        ws.append([f"{heading}"])
-        ws.merge_cells(start_row=rownum, start_column=1, end_row=rownum, end_column=len(headers))
-        ws[f'A{rownum}'].font = heading_font
-        rownum += 1
-
-        # Table headers
-        for colidx, head in enumerate(headers, 1):
-            cell = ws.cell(row=rownum, column=colidx, value=head)
-            cell.font = header_font
-            cell.fill = header_fill
-            cell.alignment = Alignment(horizontal="center", vertical="center")
-        rownum += 1
-
-        table_rows = 0
         for subheading in DEVICE_ROLE_GROUPS[heading]:
             devices = site_device_counts[site][heading][subheading]['devices']
+            if not devices:
+                continue
+            # Group+subheading title
+            ws.append([f"{heading} - {subheading}"])
+            ws.merge_cells(start_row=rownum, start_column=1, end_row=rownum, end_column=len(headers))
+            ws[f'A{rownum}'].font = subhead_font
+            rownum += 1
+
+            # Table header
+            for colidx, head in enumerate(headers, 1):
+                cell = ws.cell(row=rownum, column=colidx, value=head)
+                cell.font = header_font
+                cell.fill = header_fill
+                cell.alignment = Alignment(horizontal="center", vertical="center")
+            rownum += 1
+
+            # Devices for this role/subheading
             for device in sorted(devices, key=lambda d: d['name']):
                 ws.append([
-                    subheading,
                     device['name'],
                     short_desc(device.get('description', ''), 100),
                     "", "", "", ""  # Placeholders for ticks/crosses
@@ -222,20 +225,17 @@ for site in sorted(site_device_counts):
                 tick_backup = tick(device.get('backup_primary'))
                 tick_monitor = tick(device.get('monitoring_required') is not False)
                 for idx, (value, color) in enumerate(
-                    [tick_primary_ip, tick_serial, tick_backup, tick_monitor], start=4
+                    [tick_primary_ip, tick_serial, tick_backup, tick_monitor], start=3
                 ):
                     cell = ws.cell(row=current_row, column=idx)
                     cell.value = value
                     cell.font = Font(color=color, bold=True)
                     cell.alignment = Alignment(horizontal="center", vertical="center")
                 rownum += 1
-                table_rows += 1
-        if table_rows == 0:
-            # If there were no devices for any subheading, still move the row down
+
+            # Blank row after each table
+            ws.append([])
             rownum += 1
-        # Blank row after each heading group
-        ws.append([])
-        rownum += 1
 
     # Auto-size columns (skip merged cells)
     for col_idx in range(1, ws.max_column + 1):
