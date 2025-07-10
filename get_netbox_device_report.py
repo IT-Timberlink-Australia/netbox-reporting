@@ -151,10 +151,14 @@ for item in all_items:
     cf = item.get('custom_fields', {}) or {}
 
     # Compliance checks (null check for expanded objects, dict or str)
+    location_present = bool(item.get('location'))
+    primary_ip_present = bool(item.get('primary_ip'))
+    platform_present = bool(item.get('platform'))
     tenant_present = bool(item.get('tenant'))
     contact_present = bool(item.get('contact'))
-    location_present = bool(item.get('location'))
-    platform_present = bool(item.get('platform'))
+    serial_present = bool(item.get('serial'))
+    backup_present = bool(cf.get('last_backup_data_prim'))
+    monitoring_present = (item.get('monitoring_required') if 'monitoring_required' in item else cf.get('mon_required')) is not False
 
     device_info = {
         'site': site,
@@ -162,14 +166,14 @@ for item in all_items:
         'subheading': None,
         'name': item.get('name', 'Unknown Device'),
         'description': item.get('description', ''),
+        'location_present': location_present,
+        'primary_ip_present': primary_ip_present,
+        'platform_present': platform_present,
         'tenant_present': tenant_present,
         'contact_present': contact_present,
-        'location_present': location_present,
-        'platform_present': platform_present,
-        'primary_ip': item.get('primary_ip'),
-        'serial': item.get('serial'),
-        'backup_primary': cf.get('last_backup_data_prim'),
-        'monitoring_required': cf.get('mon_required'),
+        'serial_present': serial_present,
+        'backup_present': backup_present,
+        'monitoring_present': monitoring_present,
     }
     if role_id is not None:
         heading, subheading = get_heading_and_subheading(role_id)
@@ -188,21 +192,22 @@ wb = openpyxl.Workbook()
 wb.remove(wb.active)  # Remove default sheet
 
 headers = [
-    "Device Name", "Description", "Tenant", "Contact", "Location", "Platform",
-    "Primary IP", "Serial", "Backup Data - Primay", "Monitoring Required"
+    "Device Name", "Description", "Location", "Primary IP", "Platform", "Tenant", "Contact",
+    "Serial", "Backup Data - Primary", "Monitoring Required"
 ]
 
 header_fill = PatternFill("solid", fgColor="00336699")
 header_font = Font(bold=True, color="FFFFFFFF")
 title_font = Font(bold=True, size=14)
 subhead_font = Font(bold=True, color="333399")
+grey_fill = PatternFill("solid", fgColor="DDDDDD")  # Light grey
 
 # ---- Add Summary Worksheet ----
 summary_ws = wb.create_sheet(title="Summary", index=0)
 summary_headers = [
     "Site", "Heading", "Subheading", "Device Count",
-    "% Tenant ✓", "% Contact ✓", "% Location ✓", "% Platform ✓",
-    "% Primary IP ✓", "% Serial ✓", "% Backup ✓", "% Monitoring ✓"
+    "% Location ✓", "% Primary IP ✓", "% Platform ✓", "% Tenant ✓",
+    "% Contact ✓", "% Serial ✓", "% Backup ✓", "% Monitoring ✓"
 ]
 summary_ws.append(summary_headers)
 for cell in summary_ws[1]:
@@ -221,24 +226,24 @@ for site in sorted(site_device_counts):
             count = len(devices)
             if count == 0:
                 continue
+            location_tick = sum(1 for d in devices if d.get('location_present'))
+            primary_ip_tick = sum(1 for d in devices if d.get('primary_ip_present'))
+            platform_tick = sum(1 for d in devices if d.get('platform_present'))
             tenant_tick = sum(1 for d in devices if d.get('tenant_present'))
             contact_tick = sum(1 for d in devices if d.get('contact_present'))
-            location_tick = sum(1 for d in devices if d.get('location_present'))
-            platform_tick = sum(1 for d in devices if d.get('platform_present'))
-            ip_tick = sum(1 for d in devices if d.get('primary_ip'))
-            serial_tick = sum(1 for d in devices if d.get('serial'))
-            backup_tick = sum(1 for d in devices if d.get('backup_primary'))
-            monitor_tick = sum(1 for d in devices if d.get('monitoring_required') is not False)
+            serial_tick = sum(1 for d in devices if d.get('serial_present'))
+            backup_tick = sum(1 for d in devices if d.get('backup_present'))
+            monitor_tick = sum(1 for d in devices if d.get('monitoring_present'))
             row = [
                 site,
                 heading,
                 subheading,
                 count,
+                (location_tick/count) if count else 0,
+                (primary_ip_tick/count) if count else 0,
+                (platform_tick/count) if count else 0,
                 (tenant_tick/count) if count else 0,
                 (contact_tick/count) if count else 0,
-                (location_tick/count) if count else 0,
-                (platform_tick/count) if count else 0,
-                (ip_tick/count) if count else 0,
                 (serial_tick/count) if count else 0,
                 (backup_tick/count) if count else 0,
                 (monitor_tick/count) if count else 0,
@@ -248,11 +253,11 @@ for site in sorted(site_device_counts):
 
 # ---- Add Totals Across Sites Row ----
 total_count = 0
+total_location_tick = 0
+total_primary_ip_tick = 0
+total_platform_tick = 0
 total_tenant_tick = 0
 total_contact_tick = 0
-total_location_tick = 0
-total_platform_tick = 0
-total_ip_tick = 0
 total_serial_tick = 0
 total_backup_tick = 0
 total_monitor_tick = 0
@@ -261,14 +266,14 @@ for row in summary_rows:
     count = int(row[3] or 0)
     total_count += count
     try:
-        total_tenant_tick   += count * float(row[4] or 0)
-        total_contact_tick  += count * float(row[5] or 0)
-        total_location_tick += count * float(row[6] or 0)
-        total_platform_tick += count * float(row[7] or 0)
-        total_ip_tick       += count * float(row[8] or 0)
-        total_serial_tick   += count * float(row[9] or 0)
-        total_backup_tick   += count * float(row[10] or 0)
-        total_monitor_tick  += count * float(row[11] or 0)
+        total_location_tick   += count * float(row[4] or 0)
+        total_primary_ip_tick += count * float(row[5] or 0)
+        total_platform_tick   += count * float(row[6] or 0)
+        total_tenant_tick     += count * float(row[7] or 0)
+        total_contact_tick    += count * float(row[8] or 0)
+        total_serial_tick     += count * float(row[9] or 0)
+        total_backup_tick     += count * float(row[10] or 0)
+        total_monitor_tick    += count * float(row[11] or 0)
     except Exception:
         pass
 
@@ -278,11 +283,11 @@ if total_count > 0:
         "",
         "",
         total_count,
+        total_location_tick/total_count,
+        total_primary_ip_tick/total_count,
+        total_platform_tick/total_count,
         total_tenant_tick/total_count,
         total_contact_tick/total_count,
-        total_location_tick/total_count,
-        total_platform_tick/total_count,
-        total_ip_tick/total_count,
         total_serial_tick/total_count,
         total_backup_tick/total_count,
         total_monitor_tick/total_count
@@ -371,27 +376,27 @@ for site in sorted(site_device_counts):
                 ws.append([
                     device['name'],
                     short_desc(device.get('description', ''), 100),
-                    "", "", "", "",  # Tenant, Contact, Location, Platform: leave empty, only tick/cross below
-                    "", "", "", "",  # Ticks for compliance fields
+                    "", "", "", "", "", "", "", "",  # Placeholders for 8 ticks/crosses
                 ])
                 current_row = ws.max_row
-                # Ticks: Tenant, Contact, Location, Platform, Primary IP, Serial, Backup, Monitoring
-                tick_tenant = tick(device.get('tenant_present'))
-                tick_contact = tick(device.get('contact_present'))
-                tick_location = tick(device.get('location_present'))
-                tick_platform = tick(device.get('platform_present'))
-                tick_primary_ip = tick(device.get('primary_ip'))
-                tick_serial = tick(device.get('serial'))
-                tick_backup = tick(device.get('backup_primary'))
-                tick_monitor = tick(device.get('monitoring_required') is not False)
-                for idx, (value, color) in enumerate(
-                    [tick_tenant, tick_contact, tick_location, tick_platform,
-                     tick_primary_ip, tick_serial, tick_backup, tick_monitor], start=7
-                ):
+                # Order: Location, Primary IP, Platform, Tenant, Contact, Serial, Backup, Monitoring
+                tick_values = [
+                    tick(device.get('location_present')),
+                    tick(device.get('primary_ip_present')),
+                    tick(device.get('platform_present')),
+                    tick(device.get('tenant_present')),
+                    tick(device.get('contact_present')),
+                    tick(device.get('serial_present')),
+                    tick(device.get('backup_present')),
+                    tick(device.get('monitoring_present')),
+                ]
+                for idx, (value, color) in enumerate(tick_values, start=3):  # Columns C-J
                     cell = ws.cell(row=current_row, column=idx)
                     cell.value = value
                     cell.font = Font(color=color, bold=True)
                     cell.alignment = Alignment(horizontal="center", vertical="center")
+                    if idx in [9, 10]:  # I and J
+                        cell.fill = grey_fill
                 rownum += 1
 
             ws.append([])
@@ -416,26 +421,26 @@ for site in sorted(site_device_counts):
             ws.append([
                 device['name'],
                 short_desc(device.get('description', ''), 100),
-                "", "", "", "",  # Tenant, Contact, Location, Platform: leave empty
-                "", "", "", "",  # Ticks for compliance fields
+                "", "", "", "", "", "", "", "", ""
             ])
             current_row = ws.max_row
-            tick_tenant = tick(device.get('tenant_present'))
-            tick_contact = tick(device.get('contact_present'))
-            tick_location = tick(device.get('location_present'))
-            tick_platform = tick(device.get('platform_present'))
-            tick_primary_ip = tick(device.get('primary_ip'))
-            tick_serial = tick(device.get('serial'))
-            tick_backup = tick(device.get('backup_primary'))
-            tick_monitor = tick(device.get('monitoring_required') is not False)
-            for idx, (value, color) in enumerate(
-                [tick_tenant, tick_contact, tick_location, tick_platform,
-                 tick_primary_ip, tick_serial, tick_backup, tick_monitor], start=7
-            ):
+            tick_values = [
+                tick(device.get('location_present')),
+                tick(device.get('primary_ip_present')),
+                tick(device.get('platform_present')),
+                tick(device.get('tenant_present')),
+                tick(device.get('contact_present')),
+                tick(device.get('serial_present')),
+                tick(device.get('backup_present')),
+                tick(device.get('monitoring_present')),
+            ]
+            for idx, (value, color) in enumerate(tick_values, start=3):  # Columns C-J
                 cell = ws.cell(row=current_row, column=idx)
                 cell.value = value
                 cell.font = Font(color=color, bold=True)
                 cell.alignment = Alignment(horizontal="center", vertical="center")
+                if idx in [9, 10]:  # I and J
+                    cell.fill = grey_fill
             rownum += 1
         ws.append([])
         rownum += 1
@@ -453,6 +458,6 @@ for site in sorted(site_device_counts):
                     pass
         ws.column_dimensions[col_letter].width = min(max_length + 4, 50)
 
-excel_file = "/runner/cmdb_device_report.xlsx"
+excel_file = "/runner/netbox_device_report.xlsx"
 wb.save(excel_file)
 print("Excel report generated:", excel_file)
