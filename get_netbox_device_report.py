@@ -458,6 +458,6 @@ for site in sorted(site_device_counts):
                     pass
         ws.column_dimensions[col_letter].width = min(max_length + 4, 50)
 
-excel_file = "/runner/netbox_device_report.xlsx"
+excel_file = "/runner/cmdb_device_report.xlsx"
 wb.save(excel_file)
 print("Excel report generated:", excel_file)
