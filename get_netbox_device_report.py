@@ -11,7 +11,6 @@ try:
     from openpyxl.styles import Font, PatternFill, Alignment
     from openpyxl.utils import get_column_letter
     from openpyxl.formatting.rule import CellIsRule
-    from openpyxl.styles.numbers import BUILTIN_FORMATS
     import pytz
     from datetime import datetime
 except ImportError:
@@ -151,7 +150,7 @@ for item in all_items:
         continue
     cf = item.get('custom_fields', {}) or {}
 
-    # Compliance checks
+    # Compliance checks (null check for expanded objects, dict or str)
     tenant_present = bool(item.get('tenant'))
     contact_present = bool(item.get('contact'))
     location_present = bool(item.get('location'))
@@ -163,19 +162,14 @@ for item in all_items:
         'subheading': None,
         'name': item.get('name', 'Unknown Device'),
         'description': item.get('description', ''),
-        'tenant': item.get('tenant', {}).get('name') if isinstance(item.get('tenant'), dict) else item.get('tenant'),
-        'contact': item.get('contact', {}).get('name') if isinstance(item.get('contact'), dict) else item.get('contact'),
-        'location': item.get('location', {}).get('name') if isinstance(item.get('location'), dict) else item.get('location'),
-        'platform': item.get('platform', {}).get('name') if isinstance(item.get('platform'), dict) else item.get('platform'),
-        'primary_ip': item.get('primary_ip'),
-        'serial': item.get('serial'),
-        'backup_primary': cf.get('last_backup_data_prim'),
-        'monitoring_required': cf.get('mon_required'),
-        # Extra checks
         'tenant_present': tenant_present,
         'contact_present': contact_present,
         'location_present': location_present,
         'platform_present': platform_present,
+        'primary_ip': item.get('primary_ip'),
+        'serial': item.get('serial'),
+        'backup_primary': cf.get('last_backup_data_prim'),
+        'monitoring_required': cf.get('mon_required'),
     }
     if role_id is not None:
         heading, subheading = get_heading_and_subheading(role_id)
@@ -377,11 +371,8 @@ for site in sorted(site_device_counts):
                 ws.append([
                     device['name'],
                     short_desc(device.get('description', ''), 100),
-                    device.get('tenant', ''),
-                    device.get('contact', ''),
-                    device.get('location', ''),
-                    device.get('platform', ''),
-                    "", "", "", "", ""  # Placeholders for ticks/crosses
+                    "", "", "", "",  # Tenant, Contact, Location, Platform: leave empty, only tick/cross below
+                    "", "", "", "",  # Ticks for compliance fields
                 ])
                 current_row = ws.max_row
                 # Ticks: Tenant, Contact, Location, Platform, Primary IP, Serial, Backup, Monitoring
@@ -425,11 +416,8 @@ for site in sorted(site_device_counts):
             ws.append([
                 device['name'],
                 short_desc(device.get('description', ''), 100),
-                device.get('tenant', ''),
-                device.get('contact', ''),
-                device.get('location', ''),
-                device.get('platform', ''),
-                "", "", "", "", ""
+                "", "", "", "",  # Tenant, Contact, Location, Platform: leave empty
+                "", "", "", "",  # Ticks for compliance fields
             ])
             current_row = ws.max_row
             tick_tenant = tick(device.get('tenant_present'))
